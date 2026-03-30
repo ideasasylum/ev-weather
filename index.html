@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>EV Solar Charge Planner</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --text: #f1f5f9;
+    --text-dim: #94a3b8;
+    --accent: #facc15;
+    --good: #22c55e;
+    --ok: #eab308;
+    --poor: #ef4444;
+    --border: #475569;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  header h1 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sun-icon { color: var(--accent); font-size: 1.4rem; }
+  .settings-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .settings-btn:hover { background: var(--surface2); }
+
+  /* Settings panel */
+  .settings-panel {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .settings-panel.open { display: block; }
+  .settings-panel h3 {
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .setting-row label {
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .setting-row select, .setting-row input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+  }
+  .location-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .location-row input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+  }
+  .btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .location-display {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  /* Summary card */
+  .best-day-card {
+    background: linear-gradient(135deg, #1e3a2f, #1e293b);
+    border: 1px solid var(--good);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .best-day-card .label {
+    font-size: 0.8rem;
+    color: var(--good);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .best-day-card .value {
+    font-size: 1.3rem;
+    font-weight: 700;
+  }
+  .best-day-card .detail {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* Day cards */
+  .day-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .day-card.best { border-color: var(--good); }
+  .day-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+  }
+  .day-header:hover { background: var(--surface2); }
+  .day-name {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .day-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sun-hours {
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .quality-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+  }
+  .quality-great { background: rgba(34,197,94,0.2); color: var(--good); }
+  .quality-good { background: rgba(234,179,8,0.2); color: var(--ok); }
+  .quality-poor { background: rgba(239,68,68,0.2); color: var(--poor); }
+
+  /* Hourly bars */
+  .hours-grid {
+    display: none;
+    padding: 0 16px 12px;
+  }
+  .hours-grid.open { display: block; }
+  .hour-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 0.8rem;
+  }
+  .hour-time {
+    width: 42px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    text-align: right;
+  }
+  .hour-bar-wrap {
+    flex: 1;
+    height: 20px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .hour-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+  .hour-bar.great { background: var(--good); }
+  .hour-bar.good { background: var(--ok); }
+  .hour-bar.poor { background: var(--poor); }
+  .hour-bar.none { background: var(--surface2); }
+  .hour-info {
+    width: 36px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .period-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 0 4px;
+    border-top: 1px solid var(--surface2);
+    margin-top: 4px;
+  }
+  .period-label:first-child { border-top: none; margin-top: 0; }
+  .charge-rec {
+    font-size: 0.8rem;
+    padding: 8px 10px;
+    background: rgba(34,197,94,0.1);
+    border-radius: 8px;
+    margin-top: 8px;
+    color: var(--good);
+  }
+
+  /* Loading */
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--surface2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid var(--poor);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    padding: 8px 0 16px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+
+  .footer {
+    text-align: center;
+    padding: 16px 0;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1><span class="sun-icon">&#9728;</span> EV Solar Planner</h1>
+    <button class="settings-btn" onclick="toggleSettings()">Settings</button>
+  </header>
+
+  <div class="settings-panel" id="settingsPanel">
+    <h3>Location</h3>
+    <div class="location-row">
+      <input type="text" id="locationInput" placeholder="City or town name">
+      <button class="btn" onclick="geocodeLocation()">Search</button>
+      <button class="btn" onclick="useGeoLocation()">GPS</button>
+    </div>
+    <div class="location-display" id="locationDisplay">No location set</div>
+
+    <h3>Charging Window</h3>
+    <div class="setting-row">
+      <label for="startHour">Earliest hour</label>
+      <select id="startHour"></select>
+    </div>
+    <div class="setting-row">
+      <label for="endHour">Latest hour</label>
+      <select id="endHour"></select>
+    </div>
+    <p style="font-size:0.8rem;color:var(--text-dim);margin-top:4px;">
+      Set this to when your panels face the sun. East-facing panels produce more in the morning, south/west in the afternoon.
+    </p>
+  </div>
+
+  <div id="content">
+    <div class="loading" id="loadingState">
+      <p style="font-size:1rem; margin-bottom:8px;">Set your location to get started</p>
+      <p style="font-size:0.85rem;">Tap <strong>Settings</strong> above to set your location</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    Weather data from <a href="https://open-meteo.com/" style="color:var(--accent)">Open-Meteo</a> &middot; Free &amp; open source
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'ev-solar-prefs';
+
+let state = {
+  lat: null,
+  lon: null,
+  locationName: '',
+  startHour: 9,
+  endHour: 16,
+};
+
+function loadPrefs() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      Object.assign(state, parsed);
+    }
+  } catch(e) {}
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      lat: state.lat,
+      lon: state.lon,
+      locationName: state.locationName,
+      startHour: state.startHour,
+      endHour: state.endHour,
+    }));
+  } catch(e) {}
+}
+
+function initSelects() {
+  const startSel = document.getElementById('startHour');
+  const endSel = document.getElementById('endHour');
+  for (let h = 5; h <= 20; h++) {
+    const label = `${h.toString().padStart(2,'0')}:00`;
+    startSel.add(new Option(label, h));
+    endSel.add(new Option(label, h));
+  }
+  startSel.value = state.startHour;
+  endSel.value = state.endHour;
+
+  startSel.addEventListener('change', () => {
+    state.startHour = parseInt(startSel.value);
+    savePrefs();
+    if (state.lat !== null) fetchAndRender();
+  });
+  endSel.addEventListener('change', () => {
+    state.endHour = parseInt(endSel.value);
+    savePrefs();
+    if (state.lat !== null) fetchAndRender();
+  });
+}
+
+function toggleSettings() {
+  document.getElementById('settingsPanel').classList.toggle('open');
+}
+
+function updateLocationDisplay() {
+  const el = document.getElementById('locationDisplay');
+  if (state.locationName) {
+    el.textContent = `${state.locationName} (${state.lat.toFixed(2)}, ${state.lon.toFixed(2)})`;
+  } else if (state.lat !== null) {
+    el.textContent = `${state.lat.toFixed(4)}, ${state.lon.toFixed(4)}`;
+  } else {
+    el.textContent = 'No location set';
+  }
+}
+
+async function geocodeLocation() {
+  const query = document.getElementById('locationInput').value.trim();
+  if (!query) return;
+
+  try {
+    const resp = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
+    const data = await resp.json();
+    if (data.results && data.results.length > 0) {
+      const r = data.results[0];
+      state.lat = r.latitude;
+      state.lon = r.longitude;
+      state.locationName = r.name + (r.admin1 ? `, ${r.admin1}` : '') + (r.country ? `, ${r.country}` : '');
+      savePrefs();
+      updateLocationDisplay();
+      fetchAndRender();
+    } else {
+      showError('Location not found. Try a different search term.');
+    }
+  } catch(e) {
+    showError('Failed to search location. Check your connection.');
+  }
+}
+
+function useGeoLocation() {
+  if (!navigator.geolocation) {
+    showError('Geolocation is not supported by your browser.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      state.lat = pos.coords.latitude;
+      state.lon = pos.coords.longitude;
+      // Reverse geocode for display name
+      try {
+        const resp = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=&count=1&language=en&format=json`);
+      } catch(e) {}
+      state.locationName = 'Current location';
+      savePrefs();
+      updateLocationDisplay();
+      fetchAndRender();
+    },
+    () => {
+      showError('Could not get your location. Please allow location access or search manually.');
+    },
+    { enableHighAccuracy: false, timeout: 10000 }
+  );
+}
+
+function showError(msg) {
+  const content = document.getElementById('content');
+  content.innerHTML = `<div class="error-msg">${msg}</div>`;
+}
+
+function showLoading() {
+  const content = document.getElementById('content');
+  content.innerHTML = `<div class="loading"><div class="spinner"></div><p>Fetching forecast...</p></div>`;
+}
+
+async function fetchAndRender() {
+  if (state.lat === null) return;
+  showLoading();
+
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${state.lat}&longitude=${state.lon}&hourly=cloud_cover,direct_radiation,diffuse_radiation,temperature_2m,weather_code&daily=sunrise,sunset,weather_code,sunshine_duration&timezone=auto&forecast_days=5`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('API error');
+    const data = await resp.json();
+    renderForecast(data);
+  } catch(e) {
+    showError('Failed to fetch weather data. Please try again.');
+  }
+}
+
+function getWeatherEmoji(code) {
+  if (code <= 1) return '\u2600\ufe0f';
+  if (code <= 3) return '\u26c5';
+  if (code >= 51 && code <= 67) return '\ud83c\udf27\ufe0f';
+  if (code >= 71 && code <= 77) return '\ud83c\udf28\ufe0f';
+  if (code >= 80 && code <= 82) return '\ud83c\udf26\ufe0f';
+  if (code >= 95) return '\u26c8\ufe0f';
+  if (code >= 45 && code <= 48) return '\ud83c\udf2b\ufe0f';
+  return '\u2601\ufe0f';
+}
+
+function solarScore(cloudCover, directRadiation) {
+  // Combine cloud cover and direct radiation into a 0-100 solar score
+  const cloudScore = 100 - cloudCover;
+  if (directRadiation !== undefined && directRadiation !== null) {
+    // Direct radiation typically peaks ~800-1000 W/m2 in Ireland
+    const radScore = Math.min(100, (directRadiation / 600) * 100);
+    return Math.round(cloudScore * 0.4 + radScore * 0.6);
+  }
+  return Math.round(cloudScore);
+}
+
+function scoreClass(score) {
+  if (score >= 60) return 'great';
+  if (score >= 30) return 'good';
+  return 'poor';
+}
+
+function qualityLabel(score) {
+  if (score >= 60) return 'Great';
+  if (score >= 30) return 'Fair';
+  return 'Poor';
+}
+
+function qualityClass(score) {
+  if (score >= 60) return 'quality-great';
+  if (score >= 30) return 'quality-good';
+  return 'quality-poor';
+}
+
+function formatDay(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const today = new Date();
+  today.setHours(12,0,0,0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+
+  return d.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'short' });
+}
+
+function renderForecast(data) {
+  const hourly = data.hourly;
+  const daily = data.daily;
+  const content = document.getElementById('content');
+
+  // Group hours by day
+  const days = [];
+  for (let d = 0; d < daily.time.length; d++) {
+    const dateStr = daily.time[d];
+    const sunrise = new Date(daily.sunrise[d]);
+    const sunset = new Date(daily.sunset[d]);
+
+    const hours = [];
+    for (let i = 0; i < hourly.time.length; i++) {
+      if (hourly.time[i].startsWith(dateStr)) {
+        const hour = parseInt(hourly.time[i].substring(11, 13));
+        if (hour >= state.startHour && hour <= state.endHour) {
+          const hourTime = new Date(hourly.time[i]);
+          const isAfterSunrise = hourTime >= sunrise;
+          const isBeforeSunset = hourTime <= sunset;
+          const inDaylight = isAfterSunrise && isBeforeSunset;
+
+          const score = inDaylight
+            ? solarScore(hourly.cloud_cover[i], hourly.direct_radiation[i])
+            : 0;
+
+          hours.push({
+            hour,
+            cloudCover: hourly.cloud_cover[i],
+            directRadiation: hourly.direct_radiation[i],
+            diffuseRadiation: hourly.diffuse_radiation[i],
+            temp: hourly.temperature_2m[i],
+            weatherCode: hourly.weather_code[i],
+            score,
+            inDaylight,
+          });
+        }
+      }
+    }
+
+    const avgScore = hours.length > 0
+      ? Math.round(hours.reduce((s, h) => s + h.score, 0) / hours.length)
+      : 0;
+
+    const goodHours = hours.filter(h => h.score >= 30).length;
+    const sunshineDuration = daily.sunshine_duration[d];
+    const sunshineHrs = sunshineDuration ? (sunshineDuration / 3600).toFixed(1) : '0';
+
+    days.push({
+      dateStr,
+      sunrise,
+      sunset,
+      weatherCode: daily.weather_code[d],
+      hours,
+      avgScore,
+      goodHours,
+      sunshineHrs,
+    });
+  }
+
+  // Find best day
+  const bestDay = days.reduce((best, day) => day.avgScore > best.avgScore ? day : best, days[0]);
+
+  // Find best window (best consecutive 3+ hours)
+  let bestWindow = null;
+  for (const day of days) {
+    let runStart = -1;
+    let runScore = 0;
+    let runLen = 0;
+    for (let i = 0; i <= day.hours.length; i++) {
+      if (i < day.hours.length && day.hours[i].score >= 40) {
+        if (runStart === -1) runStart = i;
+        runScore += day.hours[i].score;
+        runLen++;
+      } else {
+        if (runLen >= 2 && runScore / runLen > (bestWindow ? bestWindow.avgScore : 0)) {
+          bestWindow = {
+            day: day.dateStr,
+            dayLabel: formatDay(day.dateStr),
+            startHour: day.hours[runStart].hour,
+            endHour: day.hours[runStart + runLen - 1].hour + 1,
+            avgScore: runScore / runLen,
+            hours: runLen,
+          };
+        }
+        runStart = -1;
+        runScore = 0;
+        runLen = 0;
+      }
+    }
+  }
+
+  let html = '';
+
+  // Best day recommendation card
+  if (bestWindow) {
+    html += `<div class="best-day-card">
+      <div class="label">Best charging window</div>
+      <div class="value">${bestWindow.dayLabel}, ${bestWindow.startHour}:00\u2013${bestWindow.endHour}:00</div>
+      <div class="detail">${bestWindow.hours} hours of good solar potential</div>
+    </div>`;
+  } else {
+    html += `<div class="best-day-card" style="border-color:var(--ok)">
+      <div class="label" style="color:var(--ok)">Low solar forecast</div>
+      <div class="value">No strong charging window found</div>
+      <div class="detail">Consider charging from the grid or wait for a clearer day</div>
+    </div>`;
+  }
+
+  // Legend
+  html += `<div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--good)"></div> Great</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--ok)"></div> Fair</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--poor)"></div> Poor</div>
+  </div>`;
+
+  // Day cards
+  for (let d = 0; d < days.length; d++) {
+    const day = days[d];
+    const isBest = day === bestDay;
+    const emoji = getWeatherEmoji(day.weatherCode);
+
+    html += `<div class="day-card${isBest ? ' best' : ''}">
+      <div class="day-header" onclick="toggleDay(${d})">
+        <div>
+          <div class="day-name">${emoji} ${formatDay(day.dateStr)}</div>
+        </div>
+        <div class="day-summary">
+          <span class="sun-hours">${day.sunshineHrs}h sun</span>
+          <span class="quality-badge ${qualityClass(day.avgScore)}">${qualityLabel(day.avgScore)}</span>
+        </div>
+      </div>
+      <div class="hours-grid${d === 0 ? ' open' : ''}" id="day-${d}">`;
+
+    let prevPeriod = '';
+    for (const h of day.hours) {
+      const period = h.hour < 12 ? 'Morning' : (h.hour < 17 ? 'Afternoon' : 'Evening');
+      if (period !== prevPeriod) {
+        html += `<div class="period-label">${period}</div>`;
+        prevPeriod = period;
+      }
+      const sc = h.inDaylight ? scoreClass(h.score) : 'none';
+      const pct = h.inDaylight ? h.score : 0;
+      html += `<div class="hour-row">
+        <span class="hour-time">${h.hour.toString().padStart(2,'0')}:00</span>
+        <div class="hour-bar-wrap">
+          <div class="hour-bar ${sc}" style="width:${pct}%"></div>
+        </div>
+        <span class="hour-info">${h.inDaylight ? h.score + '%' : '--'}</span>
+      </div>`;
+    }
+
+    // Best window for this day
+    if (bestWindow && bestWindow.day === day.dateStr) {
+      html += `<div class="charge-rec">Recommended: charge ${bestWindow.startHour}:00\u2013${bestWindow.endHour}:00</div>`;
+    }
+
+    html += `</div></div>`;
+  }
+
+  content.innerHTML = html;
+}
+
+function toggleDay(index) {
+  document.getElementById(`day-${index}`).classList.toggle('open');
+}
+
+// Init
+loadPrefs();
+initSelects();
+updateLocationDisplay();
+
+// Auto-fetch if we already have location
+if (state.lat !== null) {
+  fetchAndRender();
+}
+
+// Allow Enter key in location input
+document.getElementById('locationInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') geocodeLocation();
+});
+</script>
+
+</body>
+</html>
