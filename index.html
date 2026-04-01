@@ -506,32 +506,48 @@ function getWeatherEmoji(code) {
   return '\u2601\ufe0f';
 }
 
-function solarScore(cloudCover, directRadiation) {
-  // Combine cloud cover and direct radiation into a 0-100 solar score
-  const cloudScore = 100 - cloudCover;
+function seasonalPeakRadiation() {
+  // Ireland: ~1000 W/m2 peak in summer, ~600 W/m2 in winter
+  // Use a sinusoidal model based on month
+  const month = new Date().getMonth(); // 0=Jan, 11=Dec
+  // Peaks in June (month 5), troughs in December (month 11)
+  const angle = ((month - 5) / 12) * 2 * Math.PI;
+  return 600 + 400 * Math.cos(angle); // ranges 600-1000
+}
+
+function solarScore(cloudCover, directRadiation, diffuseRadiation) {
+  // Score based on total usable radiation relative to seasonal peak
+  const peakRad = seasonalPeakRadiation();
+
   if (directRadiation !== undefined && directRadiation !== null) {
-    // Direct radiation typically peaks ~800-1000 W/m2 in Ireland
-    const radScore = Math.min(100, (directRadiation / 600) * 100);
-    return Math.round(cloudScore * 0.4 + radScore * 0.6);
+    // Total radiation panels can use (direct is best, diffuse still helps)
+    const diffuse = diffuseRadiation || 0;
+    const totalUsable = directRadiation + diffuse * 0.5;
+    const radScore = Math.min(100, (totalUsable / peakRad) * 100);
+
+    // Cloud cover as secondary signal (radiation already accounts for clouds,
+    // but cloud cover helps distinguish hazy vs clear at similar radiation)
+    const cloudScore = 100 - cloudCover;
+    return Math.round(radScore * 0.75 + cloudScore * 0.25);
   }
-  return Math.round(cloudScore);
+  return Math.round(100 - cloudCover);
 }
 
 function scoreClass(score) {
-  if (score >= 60) return 'great';
-  if (score >= 30) return 'good';
+  if (score >= 50) return 'great';
+  if (score >= 25) return 'good';
   return 'poor';
 }
 
 function qualityLabel(score) {
-  if (score >= 60) return 'Great';
-  if (score >= 30) return 'Fair';
+  if (score >= 50) return 'Great';
+  if (score >= 25) return 'Fair';
   return 'Poor';
 }
 
 function qualityClass(score) {
-  if (score >= 60) return 'quality-great';
-  if (score >= 30) return 'quality-good';
+  if (score >= 50) return 'quality-great';
+  if (score >= 25) return 'quality-good';
   return 'quality-poor';
 }
 
@@ -571,7 +587,7 @@ function renderForecast(data) {
           const inDaylight = isAfterSunrise && isBeforeSunset;
 
           const score = inDaylight
-            ? solarScore(hourly.cloud_cover[i], hourly.direct_radiation[i])
+            ? solarScore(hourly.cloud_cover[i], hourly.direct_radiation[i], hourly.diffuse_radiation[i])
             : 0;
 
           hours.push({
@@ -618,7 +634,7 @@ function renderForecast(data) {
     let runScore = 0;
     let runLen = 0;
     for (let i = 0; i <= day.hours.length; i++) {
-      if (i < day.hours.length && day.hours[i].score >= 40) {
+      if (i < day.hours.length && day.hours[i].score >= 35) {
         if (runStart === -1) runStart = i;
         runScore += day.hours[i].score;
         runLen++;
